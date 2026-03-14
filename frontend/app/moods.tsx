@@ -170,15 +170,30 @@ export default function Moods() {
   const prepareChartData = () => {
     if (moodHistory.length === 0) return [];
     
-    const chartData = moodHistory
+    // Group moods by date (YYYY-MM-DD)
+    const moodsByDate: {[key: string]: number[]} = {};
+    
+    moodHistory.forEach(entry => {
+      const dateKey = new Date(entry.date).toLocaleDateString();
+      const moodValue = getMoodValue(entry.mood);
+      
+      if (!moodsByDate[dateKey]) {
+        moodsByDate[dateKey] = [];
+      }
+      moodsByDate[dateKey].push(moodValue);
+    });
+    
+    // Calculate average for each day and prepare chart data
+    const chartData = Object.entries(moodsByDate)
       .slice(0, 10)
       .reverse()
-      .map((entry, index) => {
-        const value = getMoodValue(entry.mood);
+      .map(([dateKey, values]) => {
+        const avgValue = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+        const date = new Date(dateKey);
         return {
-          value: value,
-          label: new Date(entry.date).getDate().toString(),
-          dataPointColor: getMoodColor(value),
+          value: avgValue,
+          label: date.getDate().toString(),
+          dataPointColor: getMoodColor(avgValue),
           dataPointRadius: 5,
         };
       });

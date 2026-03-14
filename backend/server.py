@@ -193,15 +193,41 @@ async def get_routine_tasks(user: str = "default_user"):
 # Daily Routine Score Endpoints
 @api_router.post("/routine/scores", response_model=DailyRoutineScore)
 async def create_daily_score(input: DailyRoutineScoreCreate):
-    score_dict = {
-        "total_points": input.total_points,
-        "score_date": datetime.utcnow(),
-        "user": input.user
-    }
-    result = await db.daily_routine_scores.insert_one(score_dict)
-    score_dict["id"] = str(result.inserted_id)
-    score_dict.pop("_id", None)
-    return DailyRoutineScore(**score_dict)
+    # Get today's date (without time)
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    # Check if there's already a score for today
+    existing_score = await db.daily_routine_scores.find_one({
+        "user": input.user,
+        "score_date": {"$gte": today, "$lte": tomorrow}
+    })
+    
+    if existing_score:
+        # Update existing score
+        await db.daily_routine_scores.update_one(
+            {"_id": existing_score["_id"]},
+            {"$set": {
+                "total_points": input.total_points,
+                "score_date": datetime.utcnow()
+            }}
+        )
+        existing_score["id"] = str(existing_score["_id"])
+        existing_score["total_points"] = input.total_points
+        existing_score["score_date"] = datetime.utcnow()
+        existing_score.pop("_id", None)
+        return DailyRoutineScore(**existing_score)
+    else:
+        # Create new score
+        score_dict = {
+            "total_points": input.total_points,
+            "score_date": datetime.utcnow(),
+            "user": input.user
+        }
+        result = await db.daily_routine_scores.insert_one(score_dict)
+        score_dict["id"] = str(result.inserted_id)
+        score_dict.pop("_id", None)
+        return DailyRoutineScore(**score_dict)
 
 @api_router.get("/routine/scores", response_model=List[DailyRoutineScore])
 async def get_daily_scores(user: str = "default_user"):
